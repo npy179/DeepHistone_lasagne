@@ -10,9 +10,10 @@ import lasagne
 
 import cPickle
 
+from __future__ import print_function
 
 def load_data(sequences, labels):
-    print "loading data.............."
+    print("loading data .........")
     sequence = np.load(sequences)#make sure the data type is float 32
     label = np.load(labels)
 
@@ -32,6 +33,7 @@ def load_data(sequences, labels):
     test_label = label[num_train+num_valid+1:]
     test_set = (test_sequence, test_label)
 
+
     def shared_dataset(data_xy):
         data_x, data_y = data_xy
         shared_x = T._shared(numpy.asarray(data_x, dtype=theano.config.floatX),borrow=True)
@@ -43,8 +45,10 @@ def load_data(sequences, labels):
     valid_set_x, valid_set_y = shared_dataset(valid_set)
     test_set_x, test_set_y = shared_dataset(test_set)
 
-    rval = [(train_set_x, train_set_y), (valid_set_x, valid_set_y),(test_set_x, test_set_y)]
-    return rval
+    #rval = [(train_set_x, train_set_y), (valid_set_x, valid_set_y),(test_set_x, test_set_y)]
+    #return rval
+
+    return train_set_x, train_set_y, valid_set_x, valid_set_y, test_set_x, test_set_y
 
 def build_CNets(input_var=None, batch_size, nkerns):
     #input layer
@@ -90,12 +94,135 @@ def build_CNets(input_var=None, batch_size, nkerns):
 
     return network
 
-def iterate_minibatches():
-    pass
+####################################################
+#             Batch iterator                       #
+# input is training dataset (sequence, target )    #
+####################################################
+def iterate_minibatches(inputs, targets, batchsize):
+    assert len(inputs) == len(targets)
 
+    for start_idx in range(0 ,len(inputs)-batchsize+1, batchsize):
+        excerpt = slice(start_idx, start_idx + batchsize)
+
+        yield inputs[excerpt], targets[excerpt]
 
 def main():
-    pass
+    #load data
+    print("loading data...................")
+    sequences = ""
+    labels = ""
+    X_train, y_train, X_val, y_val, X_test, y_test = load_data(sequences=sequences, labels=labels)
+
+    #Prepare Theano variables for inputs and targets
+    input_var = T.tensor4('inputs')
+    target_var = T.ivector('targets')
+
+    #Create neural network model
+    network = build_CNets(input_var)
+
+    #############################################################
+    # Create objective functions
+    #Create loss expression for training
+    #############################################################
+    prediction = lasagne.layers.get_output(network)
+    loss = lasagne.objectives.squared_error(prediction, target_var)
+    loss = loss.mean()
+    #Create regularization term L1, L2
+    lambda1 = 5e-07
+    lambda2 = 1e-08
+    l1_penalty = lasagne.regularization.regularize_network_params(network, l1)*lambda1
+    l2_penalty = lasagne.regularization.regularize_network_params(network, l2)*lambda2
+
+    loss = loss+l1_penalty+l2_penalty
+
+    # Create update expression for training SGD with Nesterov momentum
+    params = lasagne.layers.get_all_params(network,trainable=True)
+    updates = lasagne.updates.adagrad(loss, params, learning_rate=0.03,epsilon=1e-06)
+
+    #Create loss function for validatation/testing, we do a deterministic forward pass through the network, disabling dropout layers
+    test_prediction = lasagne.layers.get_output(network, deterministic = True)
+    test_loss = lasagne.objectives.squared_error(test_prediction,target_var)
+    test_loss = test_loss.mean()
+    #Create classfication accuracy
+    test_acc = T.mean(T.eq(T.argmax(test_prediction,axis=1), target_var),dtype=theano.config.floatX)
+
+    # Compile a function performing training step on minibatch of training dataset
+    train_fn = theano.function([input_var, target_var], loss, update=updates)
+
+    #Compile a function computing validation loss and accuracy
+    valid_fn = theano.function([input_var, target_var], [test_loss, test_acc])
+
+    #Start training
+    print("Starting training...................")
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 if __name__ == '__main__':
     main()
