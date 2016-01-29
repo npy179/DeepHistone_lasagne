@@ -111,7 +111,12 @@ def main():
     print("loading data...................")
     sequences = ""
     labels = ""
+    batch_size
     X_train, y_train, X_val, y_val, X_test, y_test = load_data(sequences=sequences, labels=labels)
+    n_train_bathes = X_train.get_valaue(borrow=True).shape[0]
+    n_valid_bathes = X_val.get_value(borrow=True).shape[0]
+    n_test_bathes = X_test.get_value(borrow=True).shape[0]
+
 
     #Prepare Theano variables for inputs and targets
     input_var = T.tensor4('inputs')
@@ -147,82 +152,93 @@ def main():
     test_acc = T.mean(T.eq(T.argmax(test_prediction,axis=1), target_var),dtype=theano.config.floatX)
 
     # Compile a function performing training step on minibatch of training dataset
-    train_fn = theano.function([input_var, target_var], loss, update=updates)
+    train_model = theano.function(
+        [index],
+        loss,
+        update=updates,
+        givens={
+            input_var: X_train[index * batch_size: (index + 1) * batch_size],
+            target_var: y_train[index * batch_size: (index + 1) * batch_size]
+        })
 
-    #Compile a function computing validation loss and accuracy
-    valid_fn = theano.function([input_var, target_var], [test_loss, test_acc])
+    #Compile a function computing accuracy of validation data
+    validate_model = theano.function(
+        [index],
+        [test_acc],
+        givens={
+            input_var: X_val[index * batch_size: (index + 1) * batch_size],
+            target_var: y_val[index * batch_size: (index + 1) * batch_size]
+        })
+
+    # Compile a function performing test step on minibatch of test data
+    test_model = theano.function(
+        [index],
+        [test_acc],
+        givens={
+            input_var: X_test[index * batch_size: (index + 1) * batch_size],
+            target_var: y_test[index * batch_size: (index +1) * batch_size]
+        })
 
     #Start training
     print("Starting training...................")
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+    # early-stopping parameters
+    patience = 10000
+    patience_increase = 2
+    improvement_threshold = 0.995
+    n_train_batches = 200 # there are 200 batchs in training dataset
+    validation_frequency = min(n_train_batches, patience / 2)
+
+    best_validation_loss =numpy.inf
+    best_iter = 0
+    test_score = 0.
+    start_time = timeit.default_timer()
+
+    epoch = 0
+    done_looping = False
+
+    while (epoch < n_epochs) and (not done_looping):
+        epoch = epoch + 1
+        for minibatch_index in xrange(n_train_batches):# minibatch_index 0,1,2,3,....,199
+            iter = (epoch - 1) * n_train_batches + minibatch_index # epoch is 1: iter each minibatch is one iter
+            #if iter % 100 == 0:
+            #    print("training @ iter", iter) #100, 200, 300, 400
+            cost_ij = train_model(minibatch_index) # input the mini_batch index, after iterate all the case in this mini batch, it will give out one cost_ij
+
+            if (iter+1) % validation_frequency == 0: # iter = 199
+                #compute loss on validation dataset (all batches)
+                validation_loss = [validate_model(i) for i in xrange(n_valid_batches)]
+                this_validation_loss = numpy.mean(validation_loss)
+
+                if this_validation_loss < best_validation_loss:
+
+                    #save best validation score and iteration number
+                    best_validation_loss = this_validation_loss
+                    best_iter = iter
+
+                    #test it on the test set
+                    test_losses = [test_model(i) for i in xrange(n_test_bathes)]
+                    test_score = numpy.mean(test_losses)
+
+                    print(('     epoch %i, minibatch %i/%i, test error of '
+                           'best model %f %%') %
+                          (epoch, minibatch_index + 1, n_train_batches,
+                           test_score * 100.))
+
+                    with open("best_model.pkl","w") as f:
+                        cPickle.dump(network, f, protocol=cPickle.HIGHEST_PROTOCOL)
+            if patience <= iter:
+                done_looping = True
+                break
+
+
+    end_time = timeit.default_timer()
+    print('Optimization complete.')
+    print('Best validation score of %f %% obtained at iteration %i, '
+          'with test performance %f %%' %
+          (best_validation_loss * 100., best_iter + 1, test_score * 100.))
+    print >> sys.stderr, ('The code for file ' +
+                          os.path.split(__file__)[1] +
+                          ' ran for %.2fm' % ((end_time - start_time) / 60.))
 
 if __name__ == '__main__':
     main()
