@@ -1,3 +1,4 @@
+from __future__ import print_function
 import os
 import sys
 import timeit
@@ -9,8 +10,6 @@ import theano.tensor as T
 import lasagne
 
 import cPickle
-
-from __future__ import print_function
 
 def load_data(sequences, labels):
     print("loading data .........")
@@ -50,35 +49,35 @@ def load_data(sequences, labels):
 
     return train_set_x, train_set_y, valid_set_x, valid_set_y, test_set_x, test_set_y
 
-def build_CNets(input_var=None, batch_size, nkerns):
+def build_CNets(batch_size, nkerns, input_var):
     #input layer
     network = lasagne.layers.InputLayer(shape=(batch_size, 1, 4, 600),
                                         input_var = input_var)
     #Convolution layer 1 with nkerns[0]=320, filter_size=(4, 19)
     network = lasagne.layers.Conv2DLayer(network, num_filters=nkerns[0], filter_size=(4, 19),
                                          nonlinearity=lasagne.nonlinearities.rectify,
-                                         W=lasagne.init.GlorotUniform)
+                                         W=lasagne.init.GlorotUniform())
     #Maxpooling pool_size = (1,3)
-    network = lasagne.layers.MaxPool1DLayer(network,pool_size=(1,3))
+    network = lasagne.layers.MaxPool1DLayer(network, pool_size=3)
     #Dropout with rate 0.5
     network = lasagne.layers.dropout(network,p=0.5)
 
     #Convolution layer 2 with nkerns[1]=480, filter_size=(1, 11)
-    network = lasagne.layers.Conv1DLayer(network, num_filters=nkerns[1],filter_size=(1,11),
+    network = lasagne.layers.Conv1DLayer(network, num_filters=nkerns[1], filter_size=(1,11),
                                          nonlinearity=lasagne.nonlinearities.rectify,
-                                         W=lasagne.init.GlorotUniform)
+                                         W=lasagne.init.GlorotUniform())
     #Maxpooling pool_size = (1, 4)
-    network = lasagne.layers.MaxPool1DLayer(network, pool_size=(1,4))
+    network = lasagne.layers.MaxPool1DLayer(network, pool_size=4)
     #Dropout with rate 0.5
     network = lasagne.layers.dropout(network, p=0.5)
 
     #Convolution layer 3 with nkerns[2]=960, filter_size(1, 7)
     network = lasagne.layers.Conv1DLayer(network, num_filters=nkerns[2], filter_size=(1, 7),
                                          nonlinearity=lasagne.nonlinearities.rectify,
-                                         W=lasagne.init.GlorotUniform)
+                                         W=lasagne.init.GlorotUniform())
 
     #Maxpooling pool_size = (1, 4), pool_size = (1,4)
-    network = lasagne.layers.MaxPool1DLayer(network, pool_size=(1,4))
+    network = lasagne.layers.MaxPool1DLayer(network, pool_size=4)
     #Dropout with rate 0.5
     network = lasagne.layers.dropout(network, p=0.5)
 
@@ -87,6 +86,7 @@ def build_CNets(input_var=None, batch_size, nkerns):
         lasagne.layers.dropout(network, p=0.5),
         num_units=1000,
         nonlinearity=lasagne.nonlinearities.rectify)
+
     network = lasagne.layers.DenseLayer(
         lasagne.layers.dropout(network,p=0.5),
         num_units=2,
@@ -109,24 +109,25 @@ def iterate_minibatches(inputs, targets, batchsize):
 def main():
     #load data
     print("loading data...................")
-    sequences = ""
-    labels = ""
-    batch_size
+    sequences = "H3K27me3_sequence_fore_back_10000.npy"
+    labels = "H3K27me3_label_fore_back_10000.npy"
+
     X_train, y_train, X_val, y_val, X_test, y_test = load_data(sequences=sequences, labels=labels)
-    n_train_bathes = X_train.get_valaue(borrow=True).shape[0]
+    n_train_bathes = X_train.get_value(borrow=True).shape[0]
     n_valid_bathes = X_val.get_value(borrow=True).shape[0]
     n_test_bathes = X_test.get_value(borrow=True).shape[0]
-
 
     #Prepare Theano variables for inputs and targets
     input_var = T.tensor4('inputs')
     target_var = T.ivector('targets')
 
+    batch_size = 100
+    nkerns = [320, 480, 960]
     #Create neural network model
-    network = build_CNets(input_var)
+    network = build_CNets(batch_size, nkerns, input_var)
 
     #############################################################
-    # Create objective functions
+    #Create objective functions
     #Create loss expression for training
     #############################################################
     prediction = lasagne.layers.get_output(network)
@@ -138,7 +139,7 @@ def main():
     l1_penalty = lasagne.regularization.regularize_network_params(network, l1)*lambda1
     l2_penalty = lasagne.regularization.regularize_network_params(network, l2)*lambda2
 
-    loss = loss+l1_penalty+l2_penalty
+    loss = loss + l1_penalty + l2_penalty
 
     # Create update expression for training SGD with Nesterov momentum
     params = lasagne.layers.get_all_params(network,trainable=True)
