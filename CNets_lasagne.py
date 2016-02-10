@@ -58,26 +58,26 @@ def build_CNets(batch_size, nkerns, input_var):
                                          nonlinearity=lasagne.nonlinearities.rectify,
                                          W=lasagne.init.GlorotUniform())
     #Maxpooling pool_size = (1,3)
-    network = lasagne.layers.MaxPool1DLayer(network, pool_size=3)
+    network = lasagne.layers.MaxPool2DLayer(network, pool_size=(1, 3))
     #Dropout with rate 0.5
-    network = lasagne.layers.dropout(network,p=0.5)
+    network = lasagne.layers.dropout(network,p = 0.5)
 
     #Convolution layer 2 with nkerns[1]=480, filter_size=(1, 11)
-    network = lasagne.layers.Conv1DLayer(network, num_filters=nkerns[1], filter_size=(1,11),
+    network = lasagne.layers.Conv2DLayer(network, num_filters=nkerns[1], filter_size=(1,11),
                                          nonlinearity=lasagne.nonlinearities.rectify,
                                          W=lasagne.init.GlorotUniform())
     #Maxpooling pool_size = (1, 4)
-    network = lasagne.layers.MaxPool1DLayer(network, pool_size=4)
+    network = lasagne.layers.MaxPool2DLayer(network, pool_size=(1,4))
     #Dropout with rate 0.5
     network = lasagne.layers.dropout(network, p=0.5)
 
     #Convolution layer 3 with nkerns[2]=960, filter_size(1, 7)
-    network = lasagne.layers.Conv1DLayer(network, num_filters=nkerns[2], filter_size=(1, 7),
+    network = lasagne.layers.Conv2DLayer(network, num_filters=nkerns[2], filter_size=(1, 7),
                                          nonlinearity=lasagne.nonlinearities.rectify,
                                          W=lasagne.init.GlorotUniform())
 
     #Maxpooling pool_size = (1, 4), pool_size = (1,4)
-    network = lasagne.layers.MaxPool1DLayer(network, pool_size=4)
+    network = lasagne.layers.MaxPool2DLayer(network, pool_size=(1, 4))
     #Dropout with rate 0.5
     network = lasagne.layers.dropout(network, p=0.5)
 
@@ -98,6 +98,7 @@ def build_CNets(batch_size, nkerns, input_var):
 #             Batch iterator                       #
 # input is training dataset (sequence, target )    #
 ####################################################
+"""
 def iterate_minibatches(inputs, targets, batchsize):
     assert len(inputs) == len(targets)
 
@@ -105,7 +106,7 @@ def iterate_minibatches(inputs, targets, batchsize):
         excerpt = slice(start_idx, start_idx + batchsize)
 
         yield inputs[excerpt], targets[excerpt]
-
+"""
 def main():
     #load data
     print("loading data...................")
@@ -124,13 +125,14 @@ def main():
     batch_size = 100
     nkerns = [320, 480, 960]
     #Create neural network model
-    network = build_CNets(batch_size, nkerns, input_var)
+    input_var0 = input_var.reshape(batch_size, 1, 4, 600)
+    network = build_CNets(batch_size, nkerns, input_var0)
 
     #############################################################
     #Create objective functions
     #Create loss expression for training
     #############################################################
-    prediction = lasagne.layers.get_output(network)
+    prediction = lasagne.layers.get_output(network) # Check the prediction and target value
     loss = lasagne.objectives.squared_error(prediction, target_var)
     loss = loss.mean()
     #Create regularization term L1, L2
