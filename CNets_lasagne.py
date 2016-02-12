@@ -118,15 +118,24 @@ def main():
     n_valid_bathes = X_val.get_value(borrow=True).shape[0]
     n_test_bathes = X_test.get_value(borrow=True).shape[0]
 
-    #Prepare Theano variables for inputs and targets
-    input_var = T.tensor4('inputs')
-    target_var = T.ivector('targets')
+    X_train_shape = X_train.get_value(borrow=True).shape
+#    y_train_shape = y_train.get_value(borrow=True).shape
 
+    print(X_train_shape)
+    print(y_train)
+
+    """
+    #Prepare Theano variables for inputs and targets
     batch_size = 100
     nkerns = [320, 480, 960]
+
+    input_var0 = T.matrix('inputs')
+    input_var = input_var0.reshape((batch_size, 1, 4, 600))
+    target_var = T.ivector('targets')
+
     #Create neural network model
-    input_var0 = input_var.reshape(batch_size, 1, 4, 600)
-    network = build_CNets(batch_size, nkerns, input_var0)
+    #input_var0 = input_var.reshape(batch_size, 1, 4, 600)## here I have some problem
+    network = build_CNets(batch_size, nkerns, input_var)
 
     #############################################################
     #Create objective functions
@@ -138,47 +147,54 @@ def main():
     #Create regularization term L1, L2
     lambda1 = 5e-07
     lambda2 = 1e-08
-    l1_penalty = lasagne.regularization.regularize_network_params(network, l1)*lambda1
-    l2_penalty = lasagne.regularization.regularize_network_params(network, l2)*lambda2
+    l1_penalty = lasagne.regularization.regularize_network_params(network, lasagne.regularization.l1)*lambda1 #how to use regularize_network_params
+    l2_penalty = lasagne.regularization.regularize_network_params(network, lasagne.regularization.l2)*lambda2
 
     loss = loss + l1_penalty + l2_penalty
 
-    # Create update expression for training SGD with Nesterov momentum
+    #Create update expression for training SGD with Nesterov momentum
     params = lasagne.layers.get_all_params(network,trainable=True)
     updates = lasagne.updates.adagrad(loss, params, learning_rate=0.03,epsilon=1e-06)
 
     #Create loss function for validatation/testing, we do a deterministic forward pass through the network, disabling dropout layers
     test_prediction = lasagne.layers.get_output(network, deterministic = True)
-    test_loss = lasagne.objectives.squared_error(test_prediction,target_var)
+    test_loss = lasagne.objectives.squared_error(test_prediction, target_var)
     test_loss = test_loss.mean()
     #Create classfication accuracy
     test_acc = T.mean(T.eq(T.argmax(test_prediction,axis=1), target_var),dtype=theano.config.floatX)
 
-    # Compile a function performing training step on minibatch of training dataset
+
+    index = T.lscalar()
+    #Compile a function performing training step on minibatch of training dataset
+
+    print("compiling training function ..........")
     train_model = theano.function(
         [index],
         loss,
-        update=updates,
+        updates=updates,
         givens={
-            input_var: X_train[index * batch_size: (index + 1) * batch_size],
+            input_var0: X_train[index * batch_size: (index + 1) * batch_size],
             target_var: y_train[index * batch_size: (index + 1) * batch_size]
         })
 
+
     #Compile a function computing accuracy of validation data
+    print("compiling validation function ............")
     validate_model = theano.function(
         [index],
         [test_acc],
         givens={
-            input_var: X_val[index * batch_size: (index + 1) * batch_size],
+            input_var0: X_val[index * batch_size: (index + 1) * batch_size],
             target_var: y_val[index * batch_size: (index + 1) * batch_size]
         })
 
     # Compile a function performing test step on minibatch of test data
+    print("compiling test function .............")
     test_model = theano.function(
         [index],
         [test_acc],
         givens={
-            input_var: X_test[index * batch_size: (index + 1) * batch_size],
+            input_var0: X_test[index * batch_size: (index + 1) * batch_size],
             target_var: y_test[index * batch_size: (index +1) * batch_size]
         })
 
@@ -198,6 +214,7 @@ def main():
 
     epoch = 0
     done_looping = False
+    n_epochs = 1000
 
     while (epoch < n_epochs) and (not done_looping):
         epoch = epoch + 1
@@ -242,6 +259,6 @@ def main():
     print >> sys.stderr, ('The code for file ' +
                           os.path.split(__file__)[1] +
                           ' ran for %.2fm' % ((end_time - start_time) / 60.))
-
+    """
 if __name__ == '__main__':
     main()

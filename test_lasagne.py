@@ -35,6 +35,10 @@ def main():
 
     output = lasagne.layers.get_output(network) # output is 2D list
 
+    l1_penalty = lasagne.regularization.regularize_layer_params(network)
+
+    l1 = lasagne.layers.get_output(l1_penalty)
+    print(l1)
 
     output_shape = lasagne.layers.get_output_shape(network)
     all_parameters = lasagne.layers.get_all_param_values(network)
