@@ -196,7 +196,7 @@ def evaluate_lenet5(learning_rate=0.03, n_epochs=50,
         input=layer0.output,
         image_shape=(batch_size, nkerns[0], 1, 194),
         filter_shape=(nkerns[1], nkerns[0], 1, 11),
-        poolsize=(1, 4),
+       poolsize=(1, 4),
         dropout_rate = 0.5
     )
 

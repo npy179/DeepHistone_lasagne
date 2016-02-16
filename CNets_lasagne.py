@@ -36,7 +36,7 @@ def load_data(sequences, labels):
     def shared_dataset(data_xy):
         data_x, data_y = data_xy
         shared_x = T._shared(numpy.asarray(data_x, dtype=theano.config.floatX),borrow=True)
-        shared_y = theano.shared(numpy.asarray(data_y, dtype=theano.config.floatX),borrow=True)
+        shared_y = T._shared(numpy.asarray(data_y, dtype=theano.config.floatX),borrow=True)
 
         return shared_x, T.cast(shared_y, 'int32')
 
@@ -44,10 +44,10 @@ def load_data(sequences, labels):
     valid_set_x, valid_set_y = shared_dataset(valid_set)
     test_set_x, test_set_y = shared_dataset(test_set)
 
-    #rval = [(train_set_x, train_set_y), (valid_set_x, valid_set_y),(test_set_x, test_set_y)]
-    #return rval
+    rval = [(train_set_x, train_set_y), (valid_set_x, valid_set_y),(test_set_x, test_set_y)]
+    return rval
 
-    return train_set_x, train_set_y, valid_set_x, valid_set_y, test_set_x, test_set_y
+    #return train_set_x, train_set_y, valid_set_x, valid_set_y, test_set_x, test_set_y
 
 def build_CNets(batch_size, nkerns, input_var):
     #input layer
@@ -98,44 +98,38 @@ def build_CNets(batch_size, nkerns, input_var):
 #             Batch iterator                       #
 # input is training dataset (sequence, target )    #
 ####################################################
-"""
-def iterate_minibatches(inputs, targets, batchsize):
-    assert len(inputs) == len(targets)
 
-    for start_idx in range(0 ,len(inputs)-batchsize+1, batchsize):
-        excerpt = slice(start_idx, start_idx + batchsize)
-
-        yield inputs[excerpt], targets[excerpt]
-"""
-def main():
+def main(batch_size = 100, nkerns = [320, 480, 960]):
     #load data
     print("loading data...................")
     sequences = "H3K27me3_sequence_fore_back_10000.npy"
     labels = "H3K27me3_label_fore_back_10000.npy"
 
-    X_train, y_train, X_val, y_val, X_test, y_test = load_data(sequences=sequences, labels=labels)
-    n_train_bathes = X_train.get_value(borrow=True).shape[0]
-    n_valid_bathes = X_val.get_value(borrow=True).shape[0]
-    n_test_bathes = X_test.get_value(borrow=True).shape[0]
+    datasets = load_data(sequences=sequences, labels=labels)
 
-    X_train_shape = X_train.get_value(borrow=True).shape
-#    y_train_shape = y_train.get_value(borrow=True).shape
+    train_set_x, train_set_y = datasets[0]
+    valid_set_x, valid_set_y = datasets[1]
+    test_set_x, test_set_y = datasets[2]
 
-    print(X_train_shape)
-    print(y_train)
+    # compute # of minibatches for training, validation and testing
+    n_train_bathes = train_set_x.get_value(borrow=True).shape[0]
+    n_valid_bathes = valid_set_x.get_value(borrow=True).shape[0]
+    n_test_batches = test_set_x.get_value(borrow=True).shape[0]
 
-    """
+    n_train_bathes /= batch_size
+    n_valid_bathes /= batch_size
+    n_test_batches /= batch_size
+
+    # index to a batch
+    index = T.lscalar()
     #Prepare Theano variables for inputs and targets
-    batch_size = 100
-    nkerns = [320, 480, 960]
-
-    input_var0 = T.matrix('inputs')
-    input_var = input_var0.reshape((batch_size, 1, 4, 600))
+    input_var = T.matrix('inputs')
+    input_var_0layer = input_var.reshape((batch_size, 1, 4, 600))
     target_var = T.ivector('targets')
 
     #Create neural network model
     #input_var0 = input_var.reshape(batch_size, 1, 4, 600)## here I have some problem
-    network = build_CNets(batch_size, nkerns, input_var)
+    network = build_CNets(batch_size, nkerns, input_var_0layer)
 
     #############################################################
     #Create objective functions
@@ -163,8 +157,6 @@ def main():
     #Create classfication accuracy
     test_acc = T.mean(T.eq(T.argmax(test_prediction,axis=1), target_var),dtype=theano.config.floatX)
 
-
-    index = T.lscalar()
     #Compile a function performing training step on minibatch of training dataset
 
     print("compiling training function ..........")
@@ -173,8 +165,8 @@ def main():
         loss,
         updates=updates,
         givens={
-            input_var0: X_train[index * batch_size: (index + 1) * batch_size],
-            target_var: y_train[index * batch_size: (index + 1) * batch_size]
+            input_var: train_set_x[index * batch_size: (index + 1) * batch_size],
+            target_var: train_set_y[index * batch_size: (index + 1) * batch_size]
         })
 
 
@@ -184,8 +176,8 @@ def main():
         [index],
         [test_acc],
         givens={
-            input_var0: X_val[index * batch_size: (index + 1) * batch_size],
-            target_var: y_val[index * batch_size: (index + 1) * batch_size]
+            input_var: valid_set_x[index * batch_size: (index + 1) * batch_size],
+            target_var: valid_set_y[index * batch_size: (index + 1) * batch_size]
         })
 
     # Compile a function performing test step on minibatch of test data
@@ -194,9 +186,11 @@ def main():
         [index],
         [test_acc],
         givens={
-            input_var0: X_test[index * batch_size: (index + 1) * batch_size],
-            target_var: y_test[index * batch_size: (index +1) * batch_size]
+            input_var: test_set_x[index * batch_size: (index + 1) * batch_size],
+            target_var: test_set_y[index * batch_size: (index +1) * batch_size]
         })
+
+
 
     #Start training
     print("Starting training...................")
@@ -259,6 +253,6 @@ def main():
     print >> sys.stderr, ('The code for file ' +
                           os.path.split(__file__)[1] +
                           ' ran for %.2fm' % ((end_time - start_time) / 60.))
-    """
+
 if __name__ == '__main__':
     main()
