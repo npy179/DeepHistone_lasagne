@@ -136,7 +136,8 @@ def main(batch_size = 100, nkerns = [320, 480, 960]):
     #Create loss expression for training
     #############################################################
     prediction = lasagne.layers.get_output(network) # Check the prediction and target value
-    loss = lasagne.objectives.categorical_crossentropy(prediction, target_var)#squared_error(prediction, target_var)
+
+    loss = lasagne.objectives.categorical_crossentropy(prediction, target_var)
     loss = loss.mean()
     #Create regularization term L1, L2
     lambda1 = 5e-07
@@ -162,97 +163,16 @@ def main(batch_size = 100, nkerns = [320, 480, 960]):
     print("compiling training function ..........")
     train_model = theano.function(
         [index],
-        loss,
-        updates=updates,
+        [loss],
         givens={
             input_var: train_set_x[index * batch_size: (index + 1) * batch_size],
             target_var: train_set_y[index * batch_size: (index + 1) * batch_size]
         })
 
-
-    #Compile a function computing accuracy of validation data
-    print("compiling validation function ............")
-    validate_model = theano.function(
-        [index],
-        [test_acc],
-        givens={
-            input_var: valid_set_x[index * batch_size: (index + 1) * batch_size],
-            target_var: valid_set_y[index * batch_size: (index + 1) * batch_size]
-        })
-
-    # Compile a function performing test step on minibatch of test data
-    print("compiling test function .............")
-    test_model = theano.function(
-        [index],
-        [test_acc],
-        givens={
-            input_var: test_set_x[index * batch_size: (index + 1) * batch_size],
-            target_var: test_set_y[index * batch_size: (index +1) * batch_size]
-        })
-
-
-
-    #Start training
-    print("Starting training...................")
-    # early-stopping parameters
-    patience = 10000
-    patience_increase = 2
-    improvement_threshold = 0.995
-    n_train_batches = 200 # there are 200 batchs in training dataset
-    validation_frequency = min(n_train_batches, patience / 2)
-
-    best_validation_loss =numpy.inf
-    best_iter = 0
-    test_score = 0.
-    start_time = timeit.default_timer()
-
-    epoch = 0
-    done_looping = False
-    n_epochs = 1000
-
-    while (epoch < n_epochs) and (not done_looping):
-        epoch = epoch + 1
-        for minibatch_index in xrange(n_train_batches):# minibatch_index 0,1,2,3,....,199
-            iter = (epoch - 1) * n_train_batches + minibatch_index # epoch is 1: iter each minibatch is one iter
-            #if iter % 100 == 0:
-            #    print("training @ iter", iter) #100, 200, 300, 400
-            cost_ij = train_model(minibatch_index) # input the mini_batch index, after iterate all the case in this mini batch, it will give out one cost_ij
-
-            if (iter+1) % validation_frequency == 0: # iter = 199
-                #compute loss on validation dataset (all batches)
-                validation_loss = [validate_model(i) for i in xrange(n_valid_batches)]
-                this_validation_loss = numpy.mean(validation_loss)
-
-                if this_validation_loss < best_validation_loss:
-
-                    #save best validation score and iteration number
-                    best_validation_loss = this_validation_loss
-                    best_iter = iter
-
-                    #test it on the test set
-                    test_losses = [test_model(i) for i in xrange(n_test_bathes)]
-                    test_score = numpy.mean(test_losses)
-
-                    print(('     epoch %i, minibatch %i/%i, test error of '
-                           'best model %f %%') %
-                          (epoch, minibatch_index + 1, n_train_batches,
-                           test_score * 100.))
-
-                    with open("best_model.pkl","w") as f:
-                        cPickle.dump(network, f, protocol=cPickle.HIGHEST_PROTOCOL)
-            if patience <= iter:
-                done_looping = True
-                break
-
-
-    end_time = timeit.default_timer()
-    print('Optimization complete.')
-    print('Best validation score of %f %% obtained at iteration %i, '
-          'with test performance %f %%' %
-          (best_validation_loss * 100., best_iter + 1, test_score * 100.))
-    print >> sys.stderr, ('The code for file ' +
-                          os.path.split(__file__)[1] +
-                          ' ran for %.2fm' % ((end_time - start_time) / 60.))
+    for mini_index in xrange(n_train_bathes):
+        predict = train_model(mini_index)
+        print("-----------------------------------")
+        print(predict)
 
 if __name__ == '__main__':
     main()
